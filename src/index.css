@@ -1,0 +1,254 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Restaurant Dashboard Design System - Dark Theme with Orange Accents */
+
+@layer base {
+  :root {
+    /* Dark theme as default - Restaurant Admin Panel */
+    --background: 0 0% 4%;
+    --foreground: 0 0% 98%;
+
+    --card: 0 0% 8%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 98%;
+
+    /* Orange primary - Food delivery brand color */
+    --primary: 24 95% 53%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Charcoal secondary */
+    --secondary: 0 0% 14%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 0 0% 18%;
+    --muted-foreground: 0 0% 64%;
+
+    /* Orange accent for highlights */
+    --accent: 24 95% 53%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Success green for availability */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    /* Warning yellow */
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+
+    --border: 0 0% 18%;
+    --input: 0 0% 14%;
+    --ring: 24 95% 53%;
+
+    --radius: 0.75rem;
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 6%;
+    --sidebar-foreground: 0 0% 85%;
+    --sidebar-primary: 24 95% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 12%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 0 0% 14%;
+    --sidebar-ring: 24 95% 53%;
+
+    /* Custom gradients */
+    --gradient-orange: linear-gradient(135deg, hsl(24 95% 53%) 0%, hsl(30 100% 45%) 100%);
+    --gradient-dark: linear-gradient(180deg, hsl(0 0% 8%) 0%, hsl(0 0% 4%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 10%) 0%, hsl(0 0% 7%) 100%);
+    
+    /* Shadows */
+    --shadow-glow: 0 0 40px hsl(24 95% 53% / 0.15);
+    --shadow-card: 0 4px 24px hsl(0 0% 0% / 0.4);
+    --shadow-elevated: 0 8px 32px hsl(0 0% 0% / 0.5);
+  }
+
+  .dark {
+    /* Already dark by default */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Custom scrollbar for dark theme */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(0 0% 8%);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(0 0% 25%);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(0 0% 35%);
+  }
+}
+
+@layer components {
+  /* Skeleton loader animation */
+  .skeleton-loader {
+    @apply animate-pulse bg-muted rounded;
+  }
+
+  /* Glow effect for primary elements */
+  .glow-primary {
+    box-shadow: 0 0 20px hsl(24 95% 53% / 0.3);
+  }
+
+  /* Card hover effect */
+  .card-hover {
+    @apply transition-all duration-300 ease-out;
+  }
+
+  .card-hover:hover {
+    @apply scale-[1.02];
+    box-shadow: var(--shadow-elevated);
+  }
+
+  /* Stat card gradient border */
+  .stat-card {
+    position: relative;
+    background: linear-gradient(145deg, hsl(0 0% 10%) 0%, hsl(0 0% 7%) 100%);
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, hsl(0 0% 20%) 0%, transparent 50%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Orange gradient text */
+  .text-gradient-orange {
+    background: var(--gradient-orange);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Smooth page transitions */
+  .page-transition {
+    animation: fadeSlideIn 0.4s ease-out;
+  }
+
+  @keyframes fadeSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Draggable item styles */
+  .draggable-item {
+    @apply transition-shadow duration-200;
+  }
+
+  .draggable-item.dragging {
+    @apply shadow-lg opacity-90 scale-105;
+    box-shadow: 0 10px 40px hsl(0 0% 0% / 0.5);
+  }
+
+  /* Input focus ring */
+  .input-focus {
+    @apply focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all duration-200;
+  }
+
+  /* Button variants */
+  .btn-primary-glow {
+    @apply relative overflow-hidden;
+  }
+
+  .btn-primary-glow::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    background: var(--gradient-orange);
+    filter: blur(12px);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: -1;
+  }
+
+  .btn-primary-glow:hover::after {
+    opacity: 0.5;
+  }
+
+  /* Status badge styles */
+  .status-available {
+    @apply bg-success/20 text-success border-success/30;
+  }
+
+  .status-unavailable {
+    @apply bg-destructive/20 text-destructive border-destructive/30;
+  }
+
+  .status-pending {
+    @apply bg-warning/20 text-warning border-warning/30;
+  }
+}
+
+@layer utilities {
+  /* Text balance for better readability */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Gradient backgrounds */
+  .bg-gradient-orange {
+    background: var(--gradient-orange);
+  }
+
+  .bg-gradient-dark {
+    background: var(--gradient-dark);
+  }
+
+  .bg-gradient-card {
+    background: var(--gradient-card);
+  }
+
+  /* Glass effect */
+  .glass {
+    backdrop-filter: blur(12px);
+    background: hsl(0 0% 8% / 0.8);
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
