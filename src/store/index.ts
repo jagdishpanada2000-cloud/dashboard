@@ -14,8 +14,7 @@ export interface Restaurant {
   unique_key: string;
   description: string | null;
   images: string[];
-  opening_time: string | null;
-  closing_time: string | null;
+  business_hours: Record<string, { open: string; close: string; closed: boolean }> | null;
   created_at: string;
   updated_at: string;
 }
@@ -209,8 +208,8 @@ interface RestaurantState {
   isLoading: boolean;
   fetchRestaurant: () => Promise<void>;
   setRestaurant: (data: Partial<Restaurant>) => Promise<void>;
-  createRestaurant: (data: Omit<Restaurant, 'id' | 'owner_id' | 'unique_key' | 'created_at' | 'updated_at' | 'description' | 'images' | 'opening_time' | 'closing_time'>) => Promise<void>;
-  updateProfile: (data: { description?: string; images?: string[]; opening_time?: string; closing_time?: string }) => Promise<{ success: boolean; error?: string }>;
+  createRestaurant: (data: Omit<Restaurant, 'id' | 'owner_id' | 'unique_key' | 'created_at' | 'updated_at' | 'description' | 'images' | 'business_hours'>) => Promise<void>;
+  updateProfile: (data: { description?: string; images?: string[]; business_hours?: Restaurant['business_hours'] }) => Promise<{ success: boolean; error?: string }>;
   resetSecretKey: () => Promise<void>;
 }
 
