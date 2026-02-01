@@ -8,6 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import DashboardLayout from '@/components/DashboardLayout';
+import { uploadToCloudinary } from '@/lib/cloudinary';
+import { useRef } from 'react';
+import { cn } from '@/lib/utils';
 
 const RestaurantProfile = () => {
     const { restaurant, updateProfile, isLoading, fetchRestaurant } = useRestaurantStore();
@@ -19,6 +22,8 @@ const RestaurantProfile = () => {
     const [images, setImages] = useState<string[]>([]);
     const [newImageUrl, setNewImageUrl] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (restaurant) {
@@ -31,7 +36,40 @@ const RestaurantProfile = () => {
         }
     }, [restaurant, fetchRestaurant]);
 
-    const handleAddImage = () => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (images.length >= 5) {
+            toast({
+                title: 'Limit reached',
+                description: 'You can only add up to 5 images.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
+        setIsUploading(true);
+        try {
+            const url = await uploadToCloudinary(file);
+            setImages([...images, url]);
+            toast({
+                title: 'Uploaded!',
+                description: 'Image added to your profile.',
+            });
+        } catch (error: any) {
+            toast({
+                title: 'Upload failed',
+                description: error.message || 'Could not upload image.',
+                variant: 'destructive',
+            });
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+    };
+
+    const handleAddImageUrl = () => {
         if (!newImageUrl) return;
         if (images.length >= 5) {
             toast({
@@ -165,23 +203,42 @@ const RestaurantProfile = () => {
                                 ))}
 
                                 {images.length < 5 && (
-                                    <div className="aspect-square rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center text-muted-foreground hover:bg-secondary hover:border-primary/50 transition-all cursor-pointer">
-                                        <Plus className="w-8 h-8 mb-1" />
-                                        <span className="text-[10px] font-medium">Add Photo</span>
+                                    <div
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className={cn(
+                                            "aspect-square rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center text-muted-foreground hover:bg-secondary hover:border-primary/50 transition-all cursor-pointer relative overflow-hidden",
+                                            isUploading && "pointer-events-none opacity-50"
+                                        )}
+                                    >
+                                        {isUploading ? (
+                                            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                                        ) : (
+                                            <>
+                                                <Plus className="w-8 h-8 mb-1" />
+                                                <span className="text-[10px] font-medium text-center px-1">Upload Photo</span>
+                                            </>
+                                        )}
                                     </div>
                                 )}
                             </div>
 
                             <div className="flex gap-2 pt-4">
+                                <input
+                                    type="file"
+                                    ref={fileInputRef}
+                                    className="hidden"
+                                    accept="image/*"
+                                    onChange={handleImageUpload}
+                                />
                                 <Input
-                                    placeholder="Paste image URL here..."
+                                    placeholder="Or paste image URL here..."
                                     className="bg-secondary border-border text-sm"
                                     value={newImageUrl}
                                     onChange={(e) => setNewImageUrl(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && handleAddImage()}
+                                    onKeyPress={(e) => e.key === 'Enter' && handleAddImageUrl()}
                                 />
-                                <Button onClick={handleAddImage} variant="secondary" className="shrink-0">
-                                    Add
+                                <Button onClick={handleAddImageUrl} variant="secondary" className="shrink-0">
+                                    Add URL
                                 </Button>
                             </div>
                             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
