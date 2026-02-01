@@ -9,7 +9,8 @@ import {
   ChefHat,
   Menu,
   X,
-  ShoppingBag
+  ShoppingBag,
+  Store
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuthStore, useRestaurantStore } from '@/store';
@@ -18,6 +19,7 @@ import { Button } from '@/components/ui/button';
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/profile', icon: Store, label: 'Restaurant Profile' },
   { to: '/sections', icon: Layers, label: 'Menu Sections' },
   { to: '/items', icon: UtensilsCrossed, label: 'Menu Items' },
   { to: '/orders', icon: ShoppingBag, label: 'Orders' },

@@ -13,6 +13,7 @@ import MenuSections from "./pages/MenuSections";
 import MenuItems from "./pages/MenuItems";
 import Settings from "./pages/Settings";
 import Orders from "./pages/Orders";
+import RestaurantProfile from "./pages/RestaurantProfile";
 import NotFound from "./pages/NotFound";
 import { useEffect } from "react";
 
@@ -109,6 +110,14 @@ const App = () => {
               element={
                 <ProtectedRoute>
                   <Settings />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <RestaurantProfile />
                 </ProtectedRoute>
               }
             />

@@ -12,6 +12,10 @@ export interface Restaurant {
   latitude: number | null;
   longitude: number | null;
   unique_key: string;
+  description: string | null;
+  images: string[];
+  opening_time: string | null;
+  closing_time: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -205,7 +209,8 @@ interface RestaurantState {
   isLoading: boolean;
   fetchRestaurant: () => Promise<void>;
   setRestaurant: (data: Partial<Restaurant>) => Promise<void>;
-  createRestaurant: (data: Omit<Restaurant, 'id' | 'owner_id' | 'unique_key' | 'created_at' | 'updated_at'>) => Promise<void>;
+  createRestaurant: (data: Omit<Restaurant, 'id' | 'owner_id' | 'unique_key' | 'created_at' | 'updated_at' | 'description' | 'images' | 'opening_time' | 'closing_time'>) => Promise<void>;
+  updateProfile: (data: { description?: string; images?: string[]; opening_time?: string; closing_time?: string }) => Promise<{ success: boolean; error?: string }>;
   resetSecretKey: () => Promise<void>;
 }
 
@@ -273,6 +278,25 @@ export const useRestaurantStore = create<RestaurantState>((set, get) => ({
       console.error('Error creating restaurant:', error);
       throw error;
     }
+  },
+  updateProfile: async (data) => {
+    const current = get().restaurant;
+    if (!current) return { success: false, error: 'No restaurant loaded' };
+
+    const { data: updated, error } = await supabase
+      .from('restaurants')
+      .update(data)
+      .eq('id', current.id)
+      .select()
+      .single();
+
+    if (error) return { success: false, error: error.message };
+
+    if (updated) {
+      set({ restaurant: updated });
+      return { success: true };
+    }
+    return { success: false, error: 'Failed to update profile' };
   },
   resetSecretKey: async () => {
     const current = get().restaurant;
