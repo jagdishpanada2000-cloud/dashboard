@@ -355,6 +355,7 @@ export const useRestaurantStore = create<RestaurantState>((set, get) => ({
 interface MenuSectionsState {
   sections: MenuSection[];
   isLoading: boolean;
+  hasFetched: boolean;
   fetchSections: () => Promise<void>;
   addSection: (name: string, description?: string) => Promise<{ success: boolean; error?: string }>;
   updateSection: (id: string, name: string, description?: string) => Promise<{ success: boolean; error?: string }>;
@@ -365,6 +366,7 @@ interface MenuSectionsState {
 export const useMenuSectionsStore = create<MenuSectionsState>((set, get) => ({
   sections: [],
   isLoading: false,
+  hasFetched: false,
   fetchSections: async () => {
     const restaurant = useRestaurantStore.getState().restaurant;
     if (!restaurant || get().isLoading) return;
@@ -378,9 +380,10 @@ export const useMenuSectionsStore = create<MenuSectionsState>((set, get) => ({
         .order('position', { ascending: true });
 
       if (error) throw error;
-      set({ sections: data || [] });
+      set({ sections: data || [], hasFetched: true });
     } catch (error) {
       console.error('Error fetching sections:', error);
+      set({ hasFetched: true });
     } finally {
       set({ isLoading: false });
     }
@@ -450,6 +453,7 @@ export const useMenuSectionsStore = create<MenuSectionsState>((set, get) => ({
 interface MenuItemsState {
   items: MenuItem[];
   isLoading: boolean;
+  hasFetched: boolean;
   fetchItems: (sectionId?: string) => Promise<void>;
   addItem: (item: Omit<MenuItem, 'id' | 'owner_id' | 'position' | 'created_at' | 'updated_at'>) => Promise<{ success: boolean; error?: string }>;
   updateItem: (id: string, item: Partial<MenuItem>) => Promise<{ success: boolean; error?: string }>;
@@ -461,6 +465,7 @@ interface MenuItemsState {
 export const useMenuItemsStore = create<MenuItemsState>((set, get) => ({
   items: [],
   isLoading: false,
+  hasFetched: false,
   fetchItems: async (sectionId) => {
     const restaurant = useRestaurantStore.getState().restaurant;
     if (!restaurant || get().isLoading) return;
@@ -479,9 +484,10 @@ export const useMenuItemsStore = create<MenuItemsState>((set, get) => ({
       const { data, error } = await query.order('position', { ascending: true });
 
       if (error) throw error;
-      set({ items: data || [] });
+      set({ items: data || [], hasFetched: true });
     } catch (error) {
       console.error('Error fetching items:', error);
+      set({ hasFetched: true });
     } finally {
       set({ isLoading: false });
     }

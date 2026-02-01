@@ -1,10 +1,16 @@
+import { useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+
 import { useAuthStore } from "@/store";
+import { supabase } from "@/lib/supabase"; // <-- adjust if path is different
+
 import ProtectedRoute from "@/components/ProtectedRoute";
+
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Onboarding from "./pages/Onboarding";
@@ -16,11 +22,10 @@ import Orders from "./pages/Orders";
 import RestaurantProfile from "./pages/RestaurantProfile";
 import PublicMenu from "./pages/PublicMenu";
 import NotFound from "./pages/NotFound";
-import { useEffect } from "react";
 
 const queryClient = new QueryClient();
 
-// Redirect authenticated users away from auth pages
+/* Redirect authenticated users away from auth pages */
 const AuthRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isOnboarded } = useAuthStore();
 
@@ -35,12 +40,36 @@ const AuthRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 const App = () => {
-  const { initialize, isLoading, isAuthenticated, isOnboarded } = useAuthStore();
+  const {
+    initialize,
+    isLoading,
+    isAuthenticated,
+    isOnboarded,
+  } = useAuthStore();
 
   useEffect(() => {
-    initialize();
+    const boot = async () => {
+      try {
+        // 🔹 Let Supabase read token from URL
+        await supabase.auth.getSession();
+
+        // 🔹 Remove access_token from URL after login
+        if (window.location.hash.includes("access_token")) {
+          window.history.replaceState({}, document.title, "/");
+        }
+
+        // 🔹 Now init auth store
+        await initialize();
+
+      } catch (err) {
+        console.error("Auth boot error:", err);
+      }
+    };
+
+    boot();
   }, [initialize]);
 
+  /* Loading screen */
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -54,14 +83,38 @@ const App = () => {
       <TooltipProvider>
         <Toaster />
         <Sonner />
+
         <BrowserRouter>
           <Routes>
-            {/* Redirect root to login or dashboard */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
 
-            {/* Auth routes */}
-            <Route path="/login" element={<AuthRoute><Login /></AuthRoute>} />
-            <Route path="/signup" element={<AuthRoute><Signup /></AuthRoute>} />
+            {/* Root */}
+            <Route
+              path="/"
+              element={
+                isAuthenticated
+                  ? <Navigate to="/dashboard" replace />
+                  : <Navigate to="/login" replace />
+              }
+            />
+
+            {/* Auth */}
+            <Route
+              path="/login"
+              element={
+                <AuthRoute>
+                  <Login />
+                </AuthRoute>
+              }
+            />
+
+            <Route
+              path="/signup"
+              element={
+                <AuthRoute>
+                  <Signup />
+                </AuthRoute>
+              }
+            />
 
             {/* Onboarding */}
             <Route
@@ -73,7 +126,7 @@ const App = () => {
               }
             />
 
-            {/* Protected dashboard routes */}
+            {/* Dashboard */}
             <Route
               path="/dashboard"
               element={
@@ -82,6 +135,7 @@ const App = () => {
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/sections"
               element={
@@ -90,6 +144,7 @@ const App = () => {
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/items"
               element={
@@ -98,6 +153,7 @@ const App = () => {
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/orders"
               element={
@@ -106,6 +162,7 @@ const App = () => {
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/settings"
               element={
@@ -114,6 +171,7 @@ const App = () => {
                 </ProtectedRoute>
               }
             />
+
             <Route
               path="/profile"
               element={
@@ -123,11 +181,18 @@ const App = () => {
               }
             />
 
-            {/* Public Menu Route */}
-            <Route path="/menu/:uniqueKey" element={<PublicMenu />} />
+            {/* Public menu */}
+            <Route
+              path="/menu/:uniqueKey"
+              element={<PublicMenu />}
+            />
 
-            {/* Catch-all */}
-            <Route path="*" element={<NotFound />} />
+            {/* 404 */}
+            <Route
+              path="*"
+              element={<NotFound />}
+            />
+
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
