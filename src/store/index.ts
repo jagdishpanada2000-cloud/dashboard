@@ -78,8 +78,30 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       email,
       password,
     });
-    set({ isLoading: false });
-    if (error) return { success: false, error: error.message };
+
+    if (error) {
+      set({ isLoading: false });
+      return { success: false, error: error.message };
+    }
+
+    if (data.session) {
+      const { data: restaurant } = await supabase
+        .from('restaurants')
+        .select('id')
+        .eq('owner_id', data.session.user.id)
+        .maybeSingle();
+
+      set({
+        session: data.session,
+        user: data.session.user,
+        isAuthenticated: true,
+        isOnboarded: !!restaurant,
+        isLoading: false
+      });
+    } else {
+      set({ isLoading: false });
+    }
+
     return { success: true };
   },
   signup: async (email, password) => {
@@ -88,8 +110,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       email,
       password,
     });
-    set({ isLoading: false });
-    if (error) return { success: false, error: error.message };
+
+    if (error) {
+      set({ isLoading: false });
+      return { success: false, error: error.message };
+    }
+
+    if (data.session) {
+      set({
+        session: data.session,
+        user: data.session.user,
+        isAuthenticated: true,
+        isOnboarded: false,
+        isLoading: false
+      });
+    } else {
+      set({ isLoading: false });
+    }
+
     return { success: true };
   },
   googleLogin: async () => {
@@ -97,7 +135,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin + '/onboarding',
+        redirectTo: window.location.origin + '/dashboard',
       }
     });
     set({ isLoading: false });
@@ -126,7 +164,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         .from('restaurants')
         .select('id')
         .eq('owner_id', session.user.id)
-        .single();
+        .maybeSingle();
 
       set({
         session,
@@ -146,7 +184,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           .from('restaurants')
           .select('id')
           .eq('owner_id', session.user.id)
-          .single();
+          .maybeSingle();
 
         set({
           session,

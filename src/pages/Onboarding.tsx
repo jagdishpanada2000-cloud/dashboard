@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Store, User, Phone, MapPin, Navigation, ChefHat, ArrowRight, Check } from 'lucide-react';
@@ -9,9 +9,16 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 
 const Onboarding = () => {
+  const { isOnboarded } = useAuthStore();
   const { createRestaurant } = useRestaurantStore();
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (isOnboarded) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isOnboarded, navigate]);
 
   const [formData, setFormData] = useState({
     name: '',
