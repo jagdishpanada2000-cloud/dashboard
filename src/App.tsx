@@ -14,6 +14,7 @@ import MenuItems from "./pages/MenuItems";
 import Settings from "./pages/Settings";
 import Orders from "./pages/Orders";
 import RestaurantProfile from "./pages/RestaurantProfile";
+import PublicMenu from "./pages/PublicMenu";
 import NotFound from "./pages/NotFound";
 import { useEffect } from "react";
 
@@ -121,6 +122,9 @@ const App = () => {
                 </ProtectedRoute>
               }
             />
+
+            {/* Public Menu Route */}
+            <Route path="/menu/:uniqueKey" element={<PublicMenu />} />
 
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />

@@ -211,6 +211,7 @@ interface RestaurantState {
   createRestaurant: (data: Omit<Restaurant, 'id' | 'owner_id' | 'unique_key' | 'created_at' | 'updated_at' | 'description' | 'images' | 'business_hours'>) => Promise<void>;
   updateProfile: (data: { description?: string; images?: string[]; business_hours?: Restaurant['business_hours'] }) => Promise<{ success: boolean; error?: string }>;
   resetSecretKey: () => Promise<void>;
+  getPublicMenu: (uniqueKey: string) => Promise<{ restaurant: Restaurant; sections: MenuSection[]; items: MenuItem[] } | null>;
 }
 
 export const useRestaurantStore = create<RestaurantState>((set, get) => ({
@@ -311,6 +312,41 @@ export const useRestaurantStore = create<RestaurantState>((set, get) => ({
 
     if (!error && updated) {
       set({ restaurant: updated });
+    }
+  },
+  getPublicMenu: async (uniqueKey) => {
+    try {
+      // 1. Get restaurant
+      const { data: restaurant, error: rError } = await supabase
+        .from('restaurants')
+        .select('*')
+        .eq('unique_key', uniqueKey)
+        .single();
+
+      if (rError || !restaurant) return null;
+
+      // 2. Get sections
+      const { data: sections, error: sError } = await supabase
+        .from('menu_sections')
+        .select('*')
+        .eq('restaurant_id', restaurant.id)
+        .order('position', { ascending: true });
+
+      // 3. Get available items
+      const { data: items, error: iError } = await supabase
+        .from('menu_items')
+        .select('*')
+        .eq('is_available', true)
+        .in('section_id', (sections || []).map(s => s.id))
+        .order('position', { ascending: true });
+
+      return {
+        restaurant,
+        sections: sections || [],
+        items: items || []
+      };
+    } catch (e) {
+      return null;
     }
   }
 }));

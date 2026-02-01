@@ -8,6 +8,12 @@ import { useRestaurantStore, useMenuSectionsStore, useMenuItemsStore } from '@/s
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Link } from 'react-router-dom';
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import MenuPreview from '@/components/MenuPreview';
 
 const Dashboard = () => {
   const { restaurant, fetchRestaurant, isLoading: restaurantLoading } = useRestaurantStore();
@@ -16,6 +22,7 @@ const Dashboard = () => {
   const { toast } = useToast();
 
   const [copied, setCopied] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const isLoading = restaurantLoading || sectionsLoading || itemsLoading;
 
   useEffect(() => {
@@ -80,12 +87,14 @@ const Dashboard = () => {
                 icon={UtensilsCrossed}
                 delay={0.1}
               />
-              <StatCard
-                title="Live on Menu"
-                value={availableItems}
-                icon={CheckCircle}
-                delay={0.2}
-              />
+              <div onClick={() => setIsPreviewOpen(true)} className="cursor-pointer">
+                <StatCard
+                  title="Live on Menu"
+                  value={availableItems}
+                  icon={CheckCircle}
+                  delay={0.2}
+                />
+              </div>
               <StatCard
                 title="Unavailable"
                 value={items.length - availableItems}
@@ -147,9 +156,21 @@ const Dashboard = () => {
                 All your changes are synced in real-time to your digital menu.
                 Keep your items updated for the best customer experience.
               </p>
-              <Button onClick={() => window.open(`${window.location.origin}/menu/${restaurant?.unique_key}`, '_blank')} variant="outline" className="mt-6 border-primary/20 hover:bg-primary/10">
-                View Live Menu
-              </Button>
+              <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="mt-6 border-primary/20 hover:bg-primary/10 rounded-xl h-12 px-8 font-bold">
+                    View Live Menu
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl p-0 overflow-hidden border-none bg-transparent shadow-none">
+                  <MenuPreview
+                    restaurantName={restaurant?.name || 'Your Restaurant'}
+                    sections={sections}
+                    items={items}
+                    onClose={() => setIsPreviewOpen(false)}
+                  />
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
 
