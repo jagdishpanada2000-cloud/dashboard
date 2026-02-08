@@ -44,13 +44,38 @@ export interface MenuItem {
   updated_at: string;
 }
 
+export type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'out_for_delivery' | 'delivered' | 'cancelled';
+
+export interface OrderItem {
+  id: string;
+  order_id: string;
+  menu_item_id: string;
+  quantity: number;
+  price: number;
+  special_instructions: string | null;
+  created_at: string;
+  menu_item?: {
+    name: string;
+    image_url: string | null;
+  };
+}
+
 export interface Order {
   id: string;
-  customerName: string;
-  items: { name: string; quantity: number; price: number }[];
-  total: number;
-  status: 'pending' | 'preparing' | 'ready' | 'delivered';
-  createdAt: string;
+  user_id: string;
+  restaurant_id: string;
+  status: OrderStatus;
+  total_price: number;
+  delivery_address: string | null;
+  delivery_instructions: string | null;
+  estimated_delivery_time: string | null;
+  created_at: string;
+  updated_at: string;
+  order_items: OrderItem[];
+  customer_profile?: {
+    full_name: string | null;
+    phone: string | null;
+  };
 }
 
 // Auth Store
@@ -571,52 +596,122 @@ export const useMenuItemsStore = create<MenuItemsState>((set, get) => ({
   }
 }));
 
-// Orders Store (Keeping demo orders for now as they are not in schema)
+// Orders Store — connected to Supabase
 interface OrdersState {
   orders: Order[];
-  addDemoOrder: () => void;
-  updateOrderStatus: (id: string, status: Order['status']) => void;
-  clearOrders: () => void;
+  isLoading: boolean;
+  hasFetched: boolean;
+  fetchOrders: () => Promise<void>;
+  updateOrderStatus: (id: string, status: OrderStatus) => Promise<{ success: boolean; error?: string }>;
+  subscribeToOrders: () => (() => void) | undefined;
 }
-
-const demoCustomers = ['Rahul Sharma', 'Priya Patel', 'Amit Kumar', 'Sneha Gupta', 'Vikram Singh'];
-const demoItems = [
-  { name: 'Butter Chicken', price: 320 },
-  { name: 'Paneer Tikka', price: 280 },
-  { name: 'Biryani', price: 250 },
-  { name: 'Naan Basket', price: 80 },
-  { name: 'Dal Makhani', price: 220 },
-  { name: 'Gulab Jamun', price: 120 },
-];
 
 export const useOrdersStore = create<OrdersState>((set, get) => ({
   orders: [],
-  addDemoOrder: () => {
-    const itemCount = Math.floor(Math.random() * 3) + 1;
-    const orderItems = [];
-    for (let i = 0; i < itemCount; i++) {
-      const item = demoItems[Math.floor(Math.random() * demoItems.length)];
-      const quantity = Math.floor(Math.random() * 2) + 1;
-      orderItems.push({ ...item, quantity });
-    }
-    const total = orderItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  isLoading: false,
+  hasFetched: false,
 
-    const newOrder: Order = {
-      id: Math.random().toString(36).substring(2, 11),
-      customerName: demoCustomers[Math.floor(Math.random() * demoCustomers.length)],
-      items: orderItems,
-      total,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-    };
-    set({ orders: [newOrder, ...get().orders].slice(0, 20) });
+  fetchOrders: async () => {
+    const restaurant = useRestaurantStore.getState().restaurant;
+    if (!restaurant || get().isLoading) return;
+
+    set({ isLoading: true });
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            id,
+            order_id,
+            menu_item_id,
+            quantity,
+            price,
+            special_instructions,
+            created_at,
+            menu_item:menu_items ( name, image_url )
+          )
+        `)
+        .eq('restaurant_id', restaurant.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Fetch customer profiles for all orders
+      const userIds = [...new Set((data || []).map(o => o.user_id))];
+      let profilesMap: Record<string, { full_name: string | null; phone: string | null }> = {};
+
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, phone')
+          .in('id', userIds);
+
+        if (profiles) {
+          profilesMap = Object.fromEntries(profiles.map(p => [p.id, { full_name: p.full_name, phone: p.phone }]));
+        }
+      }
+
+      const ordersWithProfiles = (data || []).map(order => ({
+        ...order,
+        order_items: order.order_items || [],
+        customer_profile: profilesMap[order.user_id] || { full_name: null, phone: null },
+      }));
+
+      set({ orders: ordersWithProfiles, hasFetched: true });
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      set({ hasFetched: true });
+    } finally {
+      set({ isLoading: false });
+    }
   },
-  updateOrderStatus: (id, status) => {
+
+  updateOrderStatus: async (id, status) => {
+    const { data, error } = await supabase
+      .from('orders')
+      .update({ status })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating order status:', error);
+      return { success: false, error: error.message };
+    }
+
+    // Update local state optimistically
     set({
       orders: get().orders.map((o) =>
-        o.id === id ? { ...o, status } : o
+        o.id === id ? { ...o, status, updated_at: data.updated_at } : o
       ),
     });
+    return { success: true };
   },
-  clearOrders: () => set({ orders: [] }),
+
+  subscribeToOrders: () => {
+    const restaurant = useRestaurantStore.getState().restaurant;
+    if (!restaurant) return undefined;
+
+    const channel = supabase
+      .channel('orders-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          filter: `restaurant_id=eq.${restaurant.id}`,
+        },
+        () => {
+          // Re-fetch orders on any change to get full joined data
+          get().fetchOrders();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  },
 }));
