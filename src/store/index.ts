@@ -201,6 +201,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isOnboarded: !!restaurant,
         isLoading: false
       });
+
+      // Automatically fetch restaurant data if user is onboarded
+      if (restaurant) {
+        const restaurantStore = useRestaurantStore.getState();
+        await restaurantStore.fetchRestaurant();
+      }
     } else {
       set({ isLoading: false });
     }
@@ -218,6 +224,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           session,
           user: session.user,
           isAuthenticated: true,
+          isOnboarded: !!restaurant,
+        });
+
+        // Automatically fetch restaurant data if user is onboarded
+        if (restaurant) {
+          const restaurantStore = useRestaurantStore.getState();
+          await restaurantStore.fetchRestaurant();
+        }
+      } else {
+        set({ session: null, user: null, isAuthenticated: false, isOnboarded: false });
+        // Clear restaurant data on logout
+        useRestaurantStore.getState().clearRestaurant();
+      }
+    });
+  },
           isOnboarded: !!restaurant
         });
       } else {
@@ -237,6 +258,7 @@ interface RestaurantState {
   updateProfile: (data: { description?: string; images?: string[]; business_hours?: Restaurant['business_hours'] }) => Promise<{ success: boolean; error?: string }>;
   resetSecretKey: () => Promise<void>;
   getPublicMenu: (uniqueKey: string) => Promise<{ restaurant: Restaurant; sections: MenuSection[]; items: MenuItem[] } | null>;
+  clearRestaurant: () => void;
 }
 
 export const useRestaurantStore = create<RestaurantState>((set, get) => ({
@@ -259,6 +281,12 @@ export const useRestaurantStore = create<RestaurantState>((set, get) => ({
       if (data) {
         set({ restaurant: data });
         useAuthStore.getState().setOnboarded(true);
+        
+        // Automatically fetch orders when restaurant is loaded
+        const ordersStore = useOrdersStore.getState();
+        if (!ordersStore.hasFetched) {
+          await ordersStore.fetchOrders();
+        }
       }
     } catch (error) {
       console.error('Error fetching restaurant:', error);
@@ -601,15 +629,32 @@ interface OrdersState {
   orders: Order[];
   isLoading: boolean;
   hasFetched: boolean;
+  searchQuery: string;
+  filter: OrderStatus | 'all';
+  statistics: {
+    total_orders: number;
+    pending_orders: number;
+    completed_orders: number;
+    total_revenue: number;
+    avg_order_value: number;
+  } | null;
   fetchOrders: () => Promise<void>;
   updateOrderStatus: (id: string, status: OrderStatus) => Promise<{ success: boolean; error?: string }>;
   subscribeToOrders: () => (() => void) | undefined;
+  searchOrders: (query: string) => Promise<void>;
+  setFilter: (filter: OrderStatus | 'all') => void;
+  fetchStatistics: () => Promise<void>;
+  refreshOrder: (id: string) => Promise<void>;
+  clearOrders: () => void;
 }
 
 export const useOrdersStore = create<OrdersState>((set, get) => ({
   orders: [],
   isLoading: false,
   hasFetched: false,
+  searchQuery: '',
+  filter: 'all',
+  statistics: null,
 
   fetchOrders: async () => {
     const restaurant = useRestaurantStore.getState().restaurant;
@@ -668,25 +713,34 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
   },
 
   updateOrderStatus: async (id, status) => {
-    const { data, error } = await supabase
-      .from('orders')
-      .update({ status })
-      .eq('id', id)
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .update({ status })
+        .eq('id', id)
+        .select()
+        .single();
 
-    if (error) {
+      if (error) throw error;
+
+      // Update local state optimistically
+      set({
+        orders: get().orders.map((o) =>
+          o.id === id ? { ...o, status, updated_at: data.updated_at } : o
+        ),
+      });
+
+      // Refresh statistics after status update
+      get().fetchStatistics();
+
+      return { success: true };
+    } catch (error) {
       console.error('Error updating order status:', error);
-      return { success: false, error: error.message };
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to update order status' 
+      };
     }
-
-    // Update local state optimistically
-    set({
-      orders: get().orders.map((o) =>
-        o.id === id ? { ...o, status, updated_at: data.updated_at } : o
-      ),
-    });
-    return { success: true };
   },
 
   subscribeToOrders: () => {
@@ -703,9 +757,57 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
           table: 'orders',
           filter: `restaurant_id=eq.${restaurant.id}`,
         },
-        () => {
-          // Re-fetch orders on any change to get full joined data
-          get().fetchOrders();
+        async (payload) => {
+          // Handle different event types
+          if (payload.eventType === 'INSERT') {
+            // Re-fetch to get the complete order data
+            get().fetchOrders();
+          } else if (payload.eventType === 'UPDATE') {
+            // Update specific order in local state
+            const updatedOrder = await supabase
+              .from('orders')
+              .select(`
+                *,
+                order_items (
+                  id,
+                  order_id,
+                  menu_item_id,
+                  quantity,
+                  price,
+                  special_instructions,
+                  created_at,
+                  menu_item:menu_items ( name, image_url )
+                )
+              `)
+              .eq('id', payload.new.id)
+              .single();
+
+            if (updatedOrder.data) {
+              // Get customer profile
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('full_name, phone')
+                .eq('id', updatedOrder.data.user_id)
+                .single();
+
+              const orderWithProfile = {
+                ...updatedOrder.data,
+                order_items: updatedOrder.data.order_items || [],
+                customer_profile: profile || { full_name: null, phone: null },
+              };
+
+              set({
+                orders: get().orders.map((o) =>
+                  o.id === payload.new.id ? orderWithProfile : o
+                ),
+              });
+            }
+          } else if (payload.eventType === 'DELETE') {
+            // Remove order from local state
+            set({
+              orders: get().orders.filter((o) => o.id !== payload.old.id),
+            });
+          }
         }
       )
       .subscribe();
@@ -713,5 +815,93 @@ export const useOrdersStore = create<OrdersState>((set, get) => ({
     return () => {
       supabase.removeChannel(channel);
     };
+  },
+
+  searchOrders: async (query: string) => {
+    set({ searchQuery: query });
+    // Implement search logic here if needed
+    // For now, filtering is done in the component
+  },
+
+  setFilter: (filter: OrderStatus | 'all') => {
+    set({ filter });
+  },
+
+  fetchStatistics: async () => {
+    const restaurant = useRestaurantStore.getState().restaurant;
+    if (!restaurant) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('status, total_price')
+        .eq('restaurant_id', restaurant.id);
+
+      if (error) throw error;
+
+      const orders = data || [];
+      const statistics = {
+        total_orders: orders.length,
+        pending_orders: orders.filter(o => ['pending', 'confirmed', 'preparing', 'ready', 'out_for_delivery'].includes(o.status)).length,
+        completed_orders: orders.filter(o => o.status === 'delivered').length,
+        total_revenue: orders.filter(o => o.status === 'delivered').reduce((sum, o) => sum + o.total_price, 0),
+        avg_order_value: orders.length > 0 ? orders.reduce((sum, o) => sum + o.total_price, 0) / orders.length : 0,
+      };
+
+      set({ statistics });
+    } catch (error) {
+      console.error('Error fetching statistics:', error);
+    }
+  },
+
+  refreshOrder: async (id: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            id,
+            order_id,
+            menu_item_id,
+            quantity,
+            price,
+            special_instructions,
+            created_at,
+            menu_item:menu_items ( name, image_url )
+          )
+        `)
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+
+      // Get customer profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, phone')
+        .eq('id', data.user_id)
+        .single();
+
+      const orderWithProfile = {
+        ...data,
+        order_items: data.order_items || [],
+        customer_profile: profile || { full_name: null, phone: null },
+      };
+
+      set({
+        orders: get().orders.map((o) =>
+          o.id === id ? orderWithProfile : o
+        ),
+      });
+    } catch (error) {
+      console.error('Error refreshing order:', error);
+    }
+  },
+  
+  clearRestaurant: () => {
+    set({ restaurant: null });
+    // Also clear orders when restaurant is cleared
+    useOrdersStore.getState().clearOrders();
   },
 }));
